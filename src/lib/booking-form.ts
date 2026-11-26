@@ -104,11 +104,16 @@ export function syncTravellers(existing: TravellerForm[], counts: Counts): Trave
 }
 
 // "Adult 1", "Adult 2", "Child 1" ...
-export function travellerLabel(travellers: TravellerForm[], index: number) {
+
+export function travellerLabel(
+  travellers: { passengerType: PassengerType }[],
+  index: number
+) {
   const type = travellers[index].passengerType;
   const n = travellers.slice(0, index + 1).filter((t) => t.passengerType === type).length;
   return `${PASSENGER_INFO[type].label} ${n}`;
 }
+
 
 export function emptyValues(): BookingFormValues {
   const counts: Counts = { ADULT: 1, CHILD: 0, YOUTH: 0, INFANT: 0 };
@@ -245,5 +250,99 @@ export function buildPayload(v: BookingFormValues, idempotencyKey?: string) {
     ticketCost: v.ticketCost,
     paymentMethod: v.paymentMethod,
     notes: v.notes.trim() || null,
+  };
+}
+
+
+
+// ---------- A saved booking, exactly as GET /api/bookings/[ref] returns it ----------
+export type BookingDetail = {
+  id: string;
+  reference: string;
+  customerName: string;
+  phone: string;
+  email: string;
+  bookingType: string;
+  journeyType: string;
+  cabinClass: string;
+  airline: string;
+  departureAirport: string;
+  destinationAirport: string;
+  departureDate: string;
+  returnDate: string | null;
+  paymentMethod: string;
+  notes: string | null;
+  totalSold?: string; // missing if the role may not see financials
+  ticketCost?: string;
+  profit?: string;
+  travellers: {
+    id: string;
+    passengerType: PassengerType;
+    title: string;
+    firstName: string;
+    middleName: string | null;
+    lastName: string;
+    dateOfBirth: string;
+    sortOrder: number;
+  }[];
+  segments: {
+    id: string;
+    segmentOrder: number;
+    airline: string | null;
+    departureAirport: string;
+    destinationAirport: string;
+    departureDate: string;
+  }[];
+  createdBy: { id: string; fullName: string };
+  updatedBy: { id: string; fullName: string };
+  createdAt: string;
+  updatedAt: string;
+};
+
+// The reverse of buildPayload: turns a saved booking into the form's state.
+export function bookingToFormValues(b: BookingDetail): BookingFormValues {
+  const counts: Counts = { ADULT: 0, CHILD: 0, YOUTH: 0, INFANT: 0 };
+  const saved: TravellerForm[] = b.travellers.map((t) => {
+    counts[t.passengerType] += 1;
+    return {
+      passengerType: t.passengerType,
+      title: t.title,
+      firstName: t.firstName,
+      middleName: t.middleName ?? "",
+      lastName: t.lastName,
+      dateOfBirth: t.dateOfBirth,
+    };
+  });
+
+  const blankSegment = (): SegmentForm => ({ departureAirport: "", destinationAirport: "", departureDate: "" });
+
+  return {
+    customerName: b.customerName,
+    phone: b.phone,
+    email: b.email,
+    bookingType: b.bookingType,
+    journeyType: b.journeyType,
+    cabinClass: b.cabinClass,
+    counts,
+    travellers: syncTravellers(saved, counts), // normalises the order: Adults, Children, Youths, Infants
+    airline: b.airline,
+    // For multi-city these hold the first departure and last destination, which
+    // is a sensible starting point if the agent switches the journey to one-way or return.
+    departureAirport: b.departureAirport,
+    destinationAirport: b.destinationAirport,
+    departureDate: b.departureDate,
+    returnDate: b.returnDate ?? "",
+    segments:
+      b.segments.length >= 2
+        ? b.segments.map((s) => ({
+            departureAirport: s.departureAirport,
+            destinationAirport: s.destinationAirport,
+            departureDate: s.departureDate,
+          }))
+        : [blankSegment(), blankSegment()],
+    totalSold: b.totalSold ?? "",
+    ticketCost: b.ticketCost ?? "",
+    paymentMethod: b.paymentMethod,
+    notes: b.notes ?? "",
   };
 }
