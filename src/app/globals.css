@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: #0f2a3d;
+  --color-paper: #f3f5f5;
+  --color-wash: #f8fafa;
+  --color-rule: #d9dee0;
+  --color-muted: #566873;
+  --color-action: #0b6e6e;
+  --color-action-dark: #095858;
+  --color-ok: #1b7f4b;
+  --color-warn: #a85f0a;
+  --color-bad: #b3261e;
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  /* Always light, whatever the device or browser prefers */
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background: #f3f5f5;
+    color: #0f2a3d;
+  }
+
+  /* Form controls never rely on inherited or system colours */
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: #0f2a3d;
+    background-color: #ffffff;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #697a84;
+    opacity: 1;
+  }
+
+  option {
+    color: #0f2a3d;
+    background: #ffffff;
+  }
+
+  /* Browser autofill paints its own colours, so override them */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #0f2a3d;
+    box-shadow: 0 0 0 1000px #ffffff inset;
+    caret-color: #0f2a3d;
+  }
+
+  ::selection {
+    background: #bfe3e0;
+    color: #0f2a3d;
+  }
+
+  :focus-visible {
+    outline: 2px solid #0b6e6e;
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
 }

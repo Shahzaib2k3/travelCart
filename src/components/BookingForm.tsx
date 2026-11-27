@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import AirportInput from "@/components/AirportInput";
 import { Field, Section, inputClass } from "@/components/form-ui";
+import { buttonClass } from "@/components/ui";
 import { AIRLINES } from "@/lib/airlines";
 import {
   BOOKING_TYPES, JOURNEY_TYPES, CABIN_CLASSES, PAYMENT_METHODS, TITLES,
@@ -17,8 +18,8 @@ import {
 type Errors = Record<string, string>;
 
 type Props = {
-  initial?: BookingFormValues; // Edit page passes the saved booking
-  bookingId?: string; // present => we are editing (PUT), absent => creating (POST)
+  initial?: BookingFormValues; // the Edit page passes the saved booking
+  bookingId?: string; // present => editing (PUT), absent => creating (POST)
   reference?: string; // shown read-only on the edit page
 };
 
@@ -30,7 +31,24 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const submitting = useRef(false); // blocks a second click instantly
-  const [idempotencyKey] = useState(() => crypto.randomUUID()); // one per form session
+
+  // STATE FIX: the key is state (not a constant) so it can be renewed after a successful save
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const justSaved = useRef(false);
+
+  // STATE FIX: runs when the form first appears AND whenever Next.js brings this
+  // page back from the background. It clears a stuck "Saving..." button, and after
+  // a successful create it gives the next booking a blank form and a fresh key.
+  useEffect(() => {
+    submitting.current = false;
+    setSaving(false);
+    if (justSaved.current && !editing) {
+      setValues(emptyValues());
+      setErrors({});
+      setIdempotencyKey(crypto.randomUUID());
+    }
+    justSaved.current = false;
+  }, [editing]);
 
   const today = todayISO();
   const total = totalTravellers(v.counts);
@@ -130,6 +148,7 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        justSaved.current = true; // STATE FIX: tells the effect above to reset when we come back
         toast.success(editing ? "Booking updated" : `Booking ${data.booking.reference} saved`);
         router.push(`/bookings/${data.booking.reference}`);
         return; // leave the button disabled while we redirect
@@ -161,7 +180,7 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
 
   // ---------- UI ----------
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
+    <form onSubmit={handleSubmit} noValidate>
       {/* A. Booking & customer */}
       <Section title="A. Booking & Customer Information">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -170,7 +189,7 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
               id="reference"
               disabled
               value={reference ?? "Assigned automatically on save"}
-              className="w-full rounded border border-slate-200 bg-slate-100 p-2.5 text-slate-500"
+              className="w-full rounded-md border border-rule bg-wash px-3 py-2 font-mono text-sm text-muted"
             />
           </Field>
           <Field label="Customer Name" htmlFor="customerName" required error={errors.customerName}>
@@ -233,30 +252,30 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
           </Field>
         </div>
 
-        <div className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+        <div className="divide-y divide-rule border border-rule">
           {PASSENGER_TYPES.map((type) => (
             <div key={type} className="flex items-center justify-between p-3">
               <div>
-                <div className="font-medium text-slate-800">{PASSENGER_INFO[type].label}</div>
-                <div className="text-xs text-slate-500">{PASSENGER_INFO[type].age}</div>
+                <div className="font-medium">{PASSENGER_INFO[type].label}</div>
+                <div className="text-xs text-muted">{PASSENGER_INFO[type].age}</div>
               </div>
               <div className="flex items-center gap-3">
                 {/* type="button" matters: inside a <form>, buttons submit by default */}
                 <button type="button" aria-label={`Remove one ${PASSENGER_INFO[type].label}`}
                   onClick={() => changeCount(type, -1)} disabled={v.counts[type] === 0}
-                  className="h-9 w-9 rounded border border-slate-300 text-lg hover:bg-slate-50 disabled:opacity-40">-</button>
+                  className="h-9 w-9 rounded-md border border-ink/25 text-lg hover:bg-wash disabled:opacity-40">-</button>
                 <span className="w-6 text-center tabular-nums">{v.counts[type]}</span>
                 <button type="button" aria-label={`Add one ${PASSENGER_INFO[type].label}`}
                   onClick={() => changeCount(type, 1)} disabled={total >= MAX_TRAVELLERS || v.counts[type] >= 9}
-                  className="h-9 w-9 rounded border border-slate-300 text-lg hover:bg-slate-50 disabled:opacity-40">+</button>
+                  className="h-9 w-9 rounded-md border border-ink/25 text-lg hover:bg-wash disabled:opacity-40">+</button>
               </div>
             </div>
           ))}
         </div>
-        <p className="mt-3 text-sm text-slate-700">
+        <p className="mt-3 text-sm">
           Total travellers: <strong>{total}</strong>
         </p>
-        {errors.travellers && <p className="mt-1 text-xs text-red-600">{errors.travellers}</p>}
+        {errors.travellers && <p className="mt-1 text-xs text-bad">{errors.travellers}</p>}
       </Section>
 
       {/* E. Traveller information */}
@@ -266,10 +285,10 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
             {v.travellers.map((t, i) => {
               const p = `travellers.${i}`;
               return (
-                <div key={`${t.passengerType}-${i}`} className="rounded-lg border border-slate-200 p-4">
+                <div key={`${t.passengerType}-${i}`} className="border border-rule p-4">
                   <div className="mb-3 flex items-baseline justify-between">
-                    <h3 className="font-medium text-slate-800">{travellerLabel(v.travellers, i)}</h3>
-                    <span className="text-xs text-slate-500">{PASSENGER_INFO[t.passengerType].age}</span>
+                    <h3 className="font-medium">{travellerLabel(v.travellers, i)}</h3>
+                    <span className="text-xs text-muted">{PASSENGER_INFO[t.passengerType].age}</span>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <Field label="Title" htmlFor={`${p}.title`} required error={errors[`${p}.title`]}>
@@ -317,7 +336,7 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
         </div>
 
         {!v.journeyType && (
-          <p className="mt-4 rounded bg-slate-50 p-3 text-sm text-slate-500">
+          <p className="mt-4 border border-dashed border-rule p-3 text-sm text-muted">
             Choose a journey type in section C to enter the flight details.
           </p>
         )}
@@ -351,11 +370,11 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
             {v.segments.map((s, i) => {
               const p = `segments.${i}`;
               return (
-                <div key={i} className="rounded-lg border border-slate-200 p-4">
+                <div key={i} className="border border-rule p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-medium text-slate-800">Flight {i + 1}</h3>
+                    <h3 className="font-medium">Flight {i + 1}</h3>
                     {v.segments.length > 2 && (
-                      <button type="button" onClick={() => removeSegment(i)} className="text-sm text-red-600 hover:underline">
+                      <button type="button" onClick={() => removeSegment(i)} className="text-sm text-bad hover:underline">
                         Remove
                       </button>
                     )}
@@ -380,10 +399,9 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
                 </div>
               );
             })}
-            {errors.segments && <p className="text-xs text-red-600">{errors.segments}</p>}
+            {errors.segments && <p className="text-xs text-bad">{errors.segments}</p>}
             {v.segments.length < MAX_SEGMENTS && (
-              <button type="button" onClick={addSegment}
-                className="rounded border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+              <button type="button" onClick={addSegment} className={buttonClass("secondary")}>
                 Add flight segment
               </button>
             )}
@@ -396,26 +414,26 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Total Sold" htmlFor="totalSold" required error={errors.totalSold} hint="The total charged to the customer.">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">£</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">£</span>
               <input id="totalSold" inputMode="decimal" value={v.totalSold} aria-invalid={invalid("totalSold")}
                 onChange={(e) => update("totalSold", e.target.value.replace(/[^0-9.]/g, ""))}
-                className={`${inputClass(errors.totalSold)} pl-7`} />
+                className={`${inputClass(errors.totalSold)} pl-7 tabular-nums`} />
             </div>
           </Field>
           <Field label="Ticket Cost (Supplier)" htmlFor="ticketCost" required error={errors.ticketCost} hint="The cost payable to the airline or supplier.">
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">£</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">£</span>
               <input id="ticketCost" inputMode="decimal" value={v.ticketCost} aria-invalid={invalid("ticketCost")}
                 onChange={(e) => update("ticketCost", e.target.value.replace(/[^0-9.]/g, ""))}
-                className={`${inputClass(errors.ticketCost)} pl-7`} />
+                className={`${inputClass(errors.ticketCost)} pl-7 tabular-nums`} />
             </div>
           </Field>
           <div>
-            <span className="mb-1 block text-sm font-medium text-slate-700">Booking Profit</span>
-            <div className={`rounded border border-slate-200 bg-slate-100 p-2.5 font-semibold ${profit?.isNegative() ? "text-red-600" : "text-slate-800"}`}>
+            <span className="mb-1 block text-sm font-medium">Booking Profit</span>
+            <div className={`rounded-md border border-rule bg-wash px-3 py-2 text-sm font-semibold tabular-nums ${profit?.isNegative() ? "text-bad" : ""}`}>
               {profit ? formatGBP(profit) : "-"}
             </div>
-            <p className="mt-1 text-xs text-slate-500">Calculated automatically: Total Sold minus Ticket Cost.</p>
+            <p className="mt-1 text-xs text-muted">Calculated automatically: Total Sold minus Ticket Cost.</p>
           </div>
         </div>
       </Section>
@@ -440,13 +458,11 @@ export default function BookingForm({ initial, bookingId, reference }: Props) {
       </Section>
 
       {/* Actions */}
-      <div className="sticky bottom-0 -mx-1 flex gap-3 border-t border-slate-200 bg-slate-100/95 px-1 py-4 backdrop-blur">
-        <button type="submit" disabled={saving}
-          className="rounded bg-blue-600 px-6 py-2.5 font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+      <div className="sticky bottom-0 -mx-1 flex gap-3 border-t border-rule bg-paper/95 px-1 py-4 backdrop-blur">
+        <button type="submit" disabled={saving} className={buttonClass("primary", "px-6")}>
           {saving ? "Saving..." : editing ? "Save Changes" : "Save Booking"}
         </button>
-        <button type="button" onClick={() => router.back()} disabled={saving}
-          className="rounded border border-slate-300 bg-white px-6 py-2.5 text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+        <button type="button" onClick={() => router.back()} disabled={saving} className={buttonClass("secondary", "px-6")}>
           Cancel
         </button>
       </div>

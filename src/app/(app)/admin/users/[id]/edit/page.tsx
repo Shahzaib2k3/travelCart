@@ -2,87 +2,141 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { Alert, Button, buttonClass, Input, Label, PageHeader, Select } from "@/components/ui";
 
 export default function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [form, setForm] = useState({ fullName: "", email: "", role: "AGENT", status: "ACTIVE" });
   const [pw, setPw] = useState({ password: "", confirmPassword: "" });
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  const [pwMsg, setPwMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState("");
+  const [pwError, setPwError] = useState("");
 
   useEffect(() => {
-    fetch(`/api/users/${id}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.user) setForm({ fullName: d.user.fullName, email: d.user.email, role: d.user.role, status: d.user.status });
-        setLoading(false);
-      });
+    fetch(`/api/users/${id}`, { cache: "no-store" })
+      .then(async (r) => {
+        if (!r.ok) return setNotFound(true);
+        const d = await r.json();
+        setForm({ fullName: d.user.fullName, email: d.user.email, role: d.user.role, status: d.user.status });
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
   }, [id]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setMsg(null);
+    if (saving) return;
+    setSaving(true);
+    setError("");
+
     const res = await fetch(`/api/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
     });
-    const data = await res.json();
-    setMsg(res.ok ? { type: "ok", text: "User updated" } : { type: "err", text: data.error });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok) toast.success("User updated");
+    else setError(data.error ?? "Could not update the user");
+    setSaving(false);
   }
 
   async function resetPassword(e: React.FormEvent) {
     e.preventDefault();
-    setPwMsg(null);
+    if (resetting) return;
+    setResetting(true);
+    setPwError("");
+
     const res = await fetch(`/api/users/${id}/password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pw),
     });
-    const data = await res.json();
-    if (res.ok) setPw({ password: "", confirmPassword: "" });
-    setPwMsg(res.ok ? { type: "ok", text: "Password reset" } : { type: "err", text: data.error });
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok) {
+      toast.success("Password reset");
+      setPw({ password: "", confirmPassword: "" });
+    } else {
+      setPwError(data.error ?? "Could not reset the password");
+    }
+    setResetting(false);
   }
 
-  const input = "w-full rounded border border-slate-300 p-2.5";
-  const banner = (m: typeof msg) =>
-    m && (
-      <div className={`rounded p-3 text-sm ${m.type === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-        {m.text}
+  if (loading) return <div className="p-6 text-muted">Loading user...</div>;
+
+  if (notFound) {
+    return (
+      <div className="mx-auto max-w-xl px-6 py-8">
+        <div className="border border-rule bg-white p-8 text-center">
+          <h1 className="text-xl font-semibold">User not found</h1>
+          <Link href="/admin/users" className="mt-4 inline-block text-action hover:underline">Back to User Management</Link>
+        </div>
       </div>
     );
-
-  if (loading) return <div className="p-6 text-slate-500">Loading...</div>;
+  }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6 p-6">
-      <h1 className="text-2xl font-semibold text-slate-800">Edit User</h1>
+    <div className="mx-auto max-w-xl px-6 py-8">
+      <PageHeader title="Edit User" subtitle={form.email} />
 
-      <form onSubmit={save} className="space-y-4 rounded-xl bg-white p-6 shadow">
-        {banner(msg)}
-        <input className={input} value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
-        <input className={input} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-        <select className={input} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-          <option value="AGENT">Agent</option>
-          <option value="ADMIN">Admin</option>
-        </select>
-        <select className={input} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-          <option value="ACTIVE">Active</option>
-          <option value="INACTIVE">Inactive</option>
-        </select>
-        <div className="flex gap-3">
-          <button className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">Save Changes</button>
-          <Link href="/admin/users" className="rounded border px-4 py-2 text-slate-600">Back</Link>
+      <form onSubmit={save} className="grid gap-5 border border-rule bg-white p-6">
+        {error && <Alert tone="err">{error}</Alert>}
+
+        <div>
+          <Label htmlFor="fullName">Full name</Label>
+          <Input id="fullName" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} required />
+        </div>
+        <div>
+          <Label htmlFor="email">Email address</Label>
+          <Input id="email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="role">Role</Label>
+            <Select id="role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+              <option value="AGENT">Agent</option>
+              <option value="ADMIN">Admin</option>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="status">Account status</Label>
+            <Select id="status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex gap-3 border-t border-rule pt-5">
+          <Button disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+          <Link href="/admin/users" className={buttonClass("secondary")}>Back</Link>
         </div>
       </form>
 
-      <form onSubmit={resetPassword} className="space-y-4 rounded-xl bg-white p-6 shadow">
-        <h2 className="font-semibold text-slate-800">Reset Password</h2>
-        {banner(pwMsg)}
-        <input className={input} type="password" placeholder="New password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} required />
-        <input className={input} type="password" placeholder="Confirm new password" value={pw.confirmPassword} onChange={(e) => setPw({ ...pw, confirmPassword: e.target.value })} required />
-        <button className="rounded bg-slate-800 px-4 py-2 text-white hover:bg-slate-900">Reset Password</button>
+      <form onSubmit={resetPassword} className="mt-6 grid gap-5 border border-rule bg-white p-6">
+        <div>
+          <h2 className="text-base font-semibold">Reset password</h2>
+          <p className="mt-1 text-sm text-muted">Set a new password for this user. Existing passwords can never be viewed.</p>
+        </div>
+        {pwError && <Alert tone="err">{pwError}</Alert>}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="newPassword">New password</Label>
+            <Input id="newPassword" type="password" value={pw.password} onChange={(e) => setPw({ ...pw, password: e.target.value })} autoComplete="new-password" required />
+          </div>
+          <div>
+            <Label htmlFor="confirmNew">Confirm new password</Label>
+            <Input id="confirmNew" type="password" value={pw.confirmPassword} onChange={(e) => setPw({ ...pw, confirmPassword: e.target.value })} autoComplete="new-password" required />
+          </div>
+        </div>
+        <div className="border-t border-rule pt-5">
+          <Button disabled={resetting}>{resetting ? "Resetting..." : "Reset Password"}</Button>
+        </div>
       </form>
     </div>
   );
