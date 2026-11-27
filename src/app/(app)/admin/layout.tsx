@@ -15,7 +15,7 @@ async function AdminGuard({ children }: { children: React.ReactNode }) {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div className="p-6 text-slate-500">Loading...</div>}>
+    <Suspense fallback={<div className="p-8 text-sm text-muted">Loading...</div>}>
       <AdminGuard>{children}</AdminGuard>
     </Suspense>
   );

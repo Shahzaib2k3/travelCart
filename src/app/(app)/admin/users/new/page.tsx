@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Alert, Button, buttonClass, Input, Label, PageHeader, Select } from "@/components/ui";
+import { Alert, Breadcrumb, Button, buttonClass, Input, Label, Page, PageHeader, Select, Spinner } from "@/components/ui";
 
 export default function NewUserPage() {
   const router = useRouter();
@@ -43,18 +43,19 @@ export default function NewUserPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-6 py-8">
+    <Page size="narrow">
+      <Breadcrumb items={[{ label: "User Management", href: "/admin/users" }, { label: "Add New User" }]} />
       <PageHeader title="Add New User" subtitle="They can sign in straight away with these details." />
 
-      <form onSubmit={submit} className="grid gap-5 border border-rule bg-white p-6">
+      <form onSubmit={submit} className="panel grid gap-5 p-6">
         {error && <Alert tone="err">{error}</Alert>}
 
         <div>
-          <Label htmlFor="fullName">Full name</Label>
+          <Label htmlFor="fullName">Full Name</Label>
           <Input id="fullName" value={form.fullName} onChange={set("fullName")} required />
         </div>
         <div>
-          <Label htmlFor="email">Email address</Label>
+          <Label htmlFor="email">Email Address</Label>
           <Input id="email" type="email" value={form.email} onChange={set("email")} autoComplete="off" required />
         </div>
         <div className="grid gap-5 sm:grid-cols-2">
@@ -63,25 +64,28 @@ export default function NewUserPage() {
             <Input id="password" type="password" value={form.password} onChange={set("password")} autoComplete="new-password" required />
           </div>
           <div>
-            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
             <Input id="confirmPassword" type="password" value={form.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" required />
           </div>
         </div>
         <p className="-mt-2 text-xs text-muted">At least 8 characters, with an uppercase letter, a lowercase letter and a number.</p>
 
-        <div>
-          <Label htmlFor="role">Role</Label>
+        <div className="sm:max-w-xs">
+          <Label htmlFor="role">User Role</Label>
           <Select id="role" value={form.role} onChange={set("role")}>
             <option value="AGENT">Agent</option>
             <option value="ADMIN">Admin</option>
           </Select>
         </div>
 
-        <div className="flex gap-3 border-t border-rule pt-5">
-          <Button disabled={saving}>{saving ? "Creating..." : "Create User"}</Button>
+        <div className="flex gap-3 border-t border-line pt-5">
+          <Button disabled={saving}>
+            {saving && <Spinner />}
+            {saving ? "Creating..." : "Create User"}
+          </Button>
           <Link href="/admin/users" className={buttonClass("secondary")}>Cancel</Link>
         </div>
       </form>
-    </div>
+    </Page>
   );
 }

@@ -38,7 +38,7 @@ export default function AirportInput({ id, value, onChange, error }: Props) {
       e.preventDefault();
       setActive((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter" && open && results[active]) {
-      e.preventDefault(); // don't submit the whole form
+      e.preventDefault(); // do not submit the whole form
       choose(results[active].code);
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -76,10 +76,10 @@ export default function AirportInput({ id, value, onChange, error }: Props) {
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded border border-slate-200 bg-white shadow-lg"
+          className="absolute z-20 mt-1.5 max-h-64 w-full overflow-auto rounded-md border border-line bg-white py-1 shadow-[0_8px_24px_rgba(15,27,45,0.12)]"
         >
           {results.length === 0 && (
-            <li className="p-3 text-sm text-slate-500">
+            <li className="px-3 py-3 text-sm text-muted">
               No airports found. Try the city, the airport name or the 3-letter code.
             </li>
           )}
@@ -94,11 +94,12 @@ export default function AirportInput({ id, value, onChange, error }: Props) {
                 choose(a.code);
               }}
               onMouseEnter={() => setActive(i)}
-              className={`cursor-pointer px-3 py-2 text-sm ${i === active ? "bg-blue-50" : ""}`}
+              className={`flex cursor-pointer items-baseline gap-3 px-3 py-2 text-sm ${i === active ? "bg-accent-soft" : ""}`}
             >
-              <span className="font-mono font-semibold">{a.code}</span> {a.name}
-              <span className="block text-xs text-slate-500">
-                {a.city}, {a.country}
+              <span className="w-9 shrink-0 font-mono text-[13px] font-medium">{a.code}</span>
+              <span className="min-w-0">
+                <span className="block truncate">{a.name}</span>
+                <span className="block text-xs text-muted">{a.city}, {a.country}</span>
               </span>
             </li>
           ))}

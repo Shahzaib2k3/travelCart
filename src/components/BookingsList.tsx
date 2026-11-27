@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import BookingsTable from "@/components/BookingsTable";
 import { Field, inputClass } from "@/components/form-ui";
+import { buttonClass, Page, PageHeader } from "@/components/ui";
 import { AIRLINES } from "@/lib/airlines";
 import { BOOKING_TYPES, JOURNEY_TYPES } from "@/lib/booking-form";
 import type { BookingRow } from "@/lib/labels";
@@ -15,6 +16,17 @@ type UserOption = { id: string; fullName: string };
 const PAGE_SIZES = [10, 25, 50];
 const FILTER_KEYS = ["q", "bookingType", "journeyType", "airline", "departureFrom", "departureTo", "createdFrom", "createdTo", "createdBy"];
 const defaultDir = (key: string) => (key === "customerName" || key === "reference" ? "asc" : "desc");
+
+// Sorting choices for phones, where there are no column headers to click
+const SORT_OPTIONS = [
+  { label: "Newest first", sort: "createdAt", dir: "desc", fin: false },
+  { label: "Oldest first", sort: "createdAt", dir: "asc", fin: false },
+  { label: "Customer, A to Z", sort: "customerName", dir: "asc", fin: false },
+  { label: "Departure, latest first", sort: "departureDate", dir: "desc", fin: false },
+  { label: "Departure, earliest first", sort: "departureDate", dir: "asc", fin: false },
+  { label: "Profit, high to low", sort: "profit", dir: "desc", fin: true },
+  { label: "Total sold, high to low", sort: "totalSold", dir: "desc", fin: true },
+];
 
 // A text box that only writes to the URL after 400 ms of silence
 function useDebouncedField(urlValue: string, commit: (value: string) => void) {
@@ -86,7 +98,7 @@ export default function BookingsList() {
     const params = new URLSearchParams(query);
     params.set("pageSize", String(pageSize));
 
-    fetch(`/api/bookings?${params}`, { signal: ctrl.signal })
+    fetch(`/api/bookings?${params}`, { signal: ctrl.signal, cache: "no-store" })
       .then(async (res) => {
         if (res.status === 401) return router.push("/login");
         const d = await res.json();
@@ -121,21 +133,20 @@ export default function BookingsList() {
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(page * pageSize, total);
   const goTo = (p: number) => setParams({ page: p > 1 ? String(p) : null });
+  const clearAll = () => router.replace(pathname, { scroll: false });
+
+  const hasFin = !data || data.bookings.length === 0 || data.bookings[0].totalSold !== undefined;
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">All Bookings</h1>
-          <p className="mt-1 text-sm text-slate-500">Search, filter and sort every booking.</p>
-        </div>
-        <Link href="/bookings/new" className="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700">
-          Upload New Booking
-        </Link>
-      </div>
+    <Page size="wide">
+      <PageHeader
+        title="All Bookings"
+        subtitle="Search, filter and sort every booking."
+        action={<Link href="/bookings/new" className={buttonClass("primary")}>Upload New Booking</Link>}
+      />
 
       {/* Search and filters */}
-      <section className="mb-6 rounded-xl bg-white p-5 shadow">
+      <section className="panel mb-5 p-4 sm:p-5" aria-label="Search and filters">
         <Field label="Search" htmlFor="search">
           <input
             id="search"
@@ -148,13 +159,13 @@ export default function BookingsList() {
         </Field>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Booking Type" htmlFor="f-type">
+          <Field label="Booking type" htmlFor="f-type">
             <select id="f-type" value={get("bookingType")} onChange={(e) => setParams({ bookingType: e.target.value || null })} className={inputClass()}>
               <option value="">All types</option>
               {BOOKING_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
-          <Field label="Journey Type" htmlFor="f-journey">
+          <Field label="Journey type" htmlFor="f-journey">
             <select id="f-journey" value={get("journeyType")} onChange={(e) => setParams({ journeyType: e.target.value || null })} className={inputClass()}>
               <option value="">All journeys</option>
               {JOURNEY_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -165,35 +176,67 @@ export default function BookingsList() {
             <datalist id="filter-airlines">{AIRLINES.map((a) => <option key={a} value={a} />)}</datalist>
           </Field>
           {isAdmin && (
-            <Field label="Created By" htmlFor="f-creator">
+            <Field label="Created by" htmlFor="f-creator">
               <select id="f-creator" value={get("createdBy")} onChange={(e) => setParams({ createdBy: e.target.value || null })} className={inputClass()}>
                 <option value="">All users</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.fullName}</option>)}
               </select>
             </Field>
           )}
-          <Field label="Departure from" htmlFor="f-dep-from">
-            <input id="f-dep-from" type="date" value={get("departureFrom")} onChange={(e) => setParams({ departureFrom: e.target.value || null })} className={inputClass()} />
-          </Field>
-          <Field label="Departure to" htmlFor="f-dep-to">
-            <input id="f-dep-to" type="date" value={get("departureTo")} min={get("departureFrom") || undefined} onChange={(e) => setParams({ departureTo: e.target.value || null })} className={inputClass()} />
-          </Field>
-          <Field label="Created from" htmlFor="f-cre-from">
-            <input id="f-cre-from" type="date" value={get("createdFrom")} onChange={(e) => setParams({ createdFrom: e.target.value || null })} className={inputClass()} />
-          </Field>
-          <Field label="Created to" htmlFor="f-cre-to">
-            <input id="f-cre-to" type="date" value={get("createdTo")} min={get("createdFrom") || undefined} onChange={(e) => setParams({ createdTo: e.target.value || null })} className={inputClass()} />
-          </Field>
+
+          <div className="sm:col-span-2">
+            <Field label="Departure date">
+              <div className="flex items-center gap-2">
+                <input aria-label="Departure date from" type="date" value={get("departureFrom")}
+                  onChange={(e) => setParams({ departureFrom: e.target.value || null })} className={inputClass()} />
+                <span className="text-sm text-muted">to</span>
+                <input aria-label="Departure date to" type="date" value={get("departureTo")} min={get("departureFrom") || undefined}
+                  onChange={(e) => setParams({ departureTo: e.target.value || null })} className={inputClass()} />
+              </div>
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="Booking creation date">
+              <div className="flex items-center gap-2">
+                <input aria-label="Created from" type="date" value={get("createdFrom")}
+                  onChange={(e) => setParams({ createdFrom: e.target.value || null })} className={inputClass()} />
+                <span className="text-sm text-muted">to</span>
+                <input aria-label="Created to" type="date" value={get("createdTo")} min={get("createdFrom") || undefined}
+                  onChange={(e) => setParams({ createdTo: e.target.value || null })} className={inputClass()} />
+              </div>
+            </Field>
+          </div>
+
+          {/* Phones have no column headers to click, so sorting is a dropdown */}
+          <div className="sm:col-span-2 md:hidden">
+            <Field label="Sort by" htmlFor="f-sort">
+              <select
+                id="f-sort"
+                value={`${sortKey}:${dir}`}
+                onChange={(e) => {
+                  const [s, d] = e.target.value.split(":");
+                  setParams({ sort: s, dir: d });
+                }}
+                className={inputClass()}
+              >
+                {SORT_OPTIONS.filter((o) => hasFin || !o.fin).map((o) => (
+                  <option key={`${o.sort}:${o.dir}`} value={`${o.sort}:${o.dir}`}>{o.label}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
 
         {hasFilters && (
-          <button type="button" onClick={() => router.replace(pathname, { scroll: false })} className="mt-4 text-sm text-blue-600 hover:underline">
-            Clear all filters
-          </button>
+          <div className="mt-4 border-t border-line pt-3">
+            <button type="button" onClick={clearAll} className="text-sm text-accent hover:underline">Clear all filters</button>
+          </div>
         )}
       </section>
 
-      {error && <div role="alert" className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div role="alert" className="mb-5 rounded-md border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{error}</div>
+      )}
 
       <BookingsTable
         rows={data?.bookings ?? []}
@@ -203,48 +246,46 @@ export default function BookingsList() {
           hasFilters ? (
             <>
               No bookings match these filters.{" "}
-              <button type="button" onClick={() => router.replace(pathname, { scroll: false })} className="text-blue-600 hover:underline">
-                Clear filters
-              </button>
+              <button type="button" onClick={clearAll} className="text-accent hover:underline">Clear filters</button>
             </>
           ) : (
             <>
               No bookings yet.{" "}
-              <Link href="/bookings/new" className="text-blue-600 hover:underline">Upload the first booking</Link>.
+              <Link href="/bookings/new" className="text-accent hover:underline">Upload the first booking</Link>.
             </>
           )
         }
       />
 
       {/* Pagination */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-        <div aria-live="polite">{total === 0 ? "No bookings" : `Showing ${from}-${to} of ${total.toLocaleString("en-GB")}`}</div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+        <div aria-live="polite">
+          {total === 0 ? "No bookings" : `Showing ${from} to ${to} of ${total.toLocaleString("en-GB")}`}
+        </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <label className="flex items-center gap-2">
             Rows per page
             <select
               value={pageSize}
               onChange={(e) => setParams({ pageSize: e.target.value === "10" ? null : e.target.value })}
-              className="rounded border border-slate-300 p-1.5"
+              className="rounded-md border border-line-strong bg-white px-2.5 py-1.5 text-sm text-ink outline-none focus:border-accent focus:ring-[3px] focus:ring-accent/15"
             >
               {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
 
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => goTo(page - 1)} disabled={page <= 1 || loading}
-              className="rounded border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => goTo(page - 1)} disabled={page <= 1 || loading} className={buttonClass("secondary", "py-1.5")}>
               Previous
             </button>
             <span className="tabular-nums">Page {page} of {totalPages}</span>
-            <button type="button" onClick={() => goTo(page + 1)} disabled={page >= totalPages || loading}
-              className="rounded border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40">
+            <button type="button" onClick={() => goTo(page + 1)} disabled={page >= totalPages || loading} className={buttonClass("secondary", "py-1.5")}>
               Next
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </Page>
   );
 }

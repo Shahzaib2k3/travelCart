@@ -4,6 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BookingForm from "@/components/BookingForm";
+import { Breadcrumb, buttonClass, EmptyState, Page, PageHeader } from "@/components/ui";
 import { bookingToFormValues, type BookingDetail } from "@/lib/booking-form";
 
 export default function EditBookingPage({ params }: { params: Promise<{ ref: string }> }) {
@@ -15,8 +16,10 @@ export default function EditBookingPage({ params }: { params: Promise<{ ref: str
 
   useEffect(() => {
     const ctrl = new AbortController();
+    setBooking(null); // show the loading state instead of stale data
+    setError("");
 
-    fetch(`/api/bookings/${ref}`, { signal: ctrl.signal })
+    fetch(`/api/bookings/${ref}`, { signal: ctrl.signal, cache: "no-store" })
       .then(async (res) => {
         if (res.status === 401) return router.push("/login");
         const d = await res.json();
@@ -35,29 +38,50 @@ export default function EditBookingPage({ params }: { params: Promise<{ ref: str
 
   if (error) {
     return (
-      <div className="mx-auto max-w-xl p-6">
-        <div className="rounded-xl bg-white p-8 text-center shadow">
-          <h1 className="text-xl font-semibold text-slate-800">Cannot edit this booking</h1>
-          <p className="mt-2 text-sm text-slate-500">{error}</p>
-          <Link href="/bookings" className="mt-4 inline-block text-blue-600 hover:underline">Back to All Bookings</Link>
+      <Page size="narrow">
+        <div className="panel">
+          <EmptyState
+            title="Cannot edit this booking"
+            action={<Link href="/bookings" className={buttonClass("secondary")}>Back to All Bookings</Link>}
+          >
+            {error}
+          </EmptyState>
         </div>
-      </div>
+      </Page>
     );
   }
 
-  if (!booking || !initial) return <div className="p-6 text-slate-500">Loading booking...</div>;
+  if (!booking || !initial) {
+    return (
+      <Page size="form">
+        <div role="status" aria-label="Loading booking" className="space-y-4">
+          <div className="h-4 w-48 animate-pulse rounded bg-line" />
+          <div className="h-8 w-56 animate-pulse rounded bg-line" />
+          <div className="panel mt-8 h-96 animate-pulse bg-sunken" />
+        </div>
+      </Page>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
-      <Link href={`/bookings/${booking.reference}`} className="text-sm text-blue-600 hover:underline">
-        ← Back to booking
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-800">Edit Booking</h1>
-      <p className="mb-6 mt-1 text-sm text-slate-500">
-        Changes are saved against <span className="font-mono">{booking.reference}</span>. The reference never changes, and
-        profit is recalculated automatically.
-      </p>
-      <BookingForm key={booking.id} initial={initial} bookingId={booking.id} reference={booking.reference} />
-    </div>
+    <Page size="form">
+      <Breadcrumb
+        items={[
+          { label: "Bookings", href: "/bookings" },
+          { label: booking.reference, href: `/bookings/${booking.reference}`, mono: true },
+          { label: "Edit" },
+        ]}
+      />
+      <PageHeader
+        title="Edit Booking"
+        subtitle={`Changes are saved against ${booking.reference}. The reference never changes, and profit is recalculated automatically.`}
+      />
+      <BookingForm
+        key={`${booking.id}-${booking.updatedAt}`}
+        initial={initial}
+        bookingId={booking.id}
+        reference={booking.reference}
+      />
+    </Page>
   );
 }
